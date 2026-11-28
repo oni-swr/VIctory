@@ -90,7 +90,8 @@ fn enable_debug_layer() {
         } else {
             eprintln!(
                 "warning: VICTORY_D3D12_DEBUG requested the D3D12 debug layer, but it is unavailable. \
-                 Install Graphics Tools in Windows Optional Features and rerun. \
+                 Install Graphics Tools in Windows Optional Features. If using a local Agility SDK, \
+                 place the matching D3D12SDKLayers.dll beside D3D12Core.dll. \
                  Continuing without debug-layer messages."
             );
         }

@@ -11,17 +11,24 @@ use std::sync::Once;
 use victory_shader::emit::host::Host;
 use windows::Win32::Graphics::Direct3D12::*;
 
-/// A host on WARP with the layer on, or `None` where it is not installed
-/// (the optional "Graphics Tools" Windows feature).
+/// A host on WARP with the layer on, or a diagnostic explaining why it could not start.
 fn host() -> Option<Host> {
     static LAYER: Once = Once::new();
     // SAFETY: before any thread of this process reads the environment: every
     // test calls this first, and `Once` blocks the others until it is set.
     LAYER.call_once(|| unsafe { std::env::set_var("VICTORY_D3D12_DEBUG", "1") });
-    let host = Host::new(true).ok()?;
-    windows::core::Interface::cast::<ID3D12InfoQueue>(&host.device)
-        .ok()
-        .map(|_| host)
+    let host = match Host::new(true) {
+        Ok(host) => host,
+        Err(reason) => {
+            eprintln!("Skipping debug-layer test. WARP initialization failed ({reason})");
+            return None;
+        }
+    };
+    if windows::core::Interface::cast::<ID3D12InfoQueue>(&host.device).is_err() {
+        eprintln!("Skipping debug-layer test because the debug layer is unavailable on the initialized WARP device.");
+        return None;
+    }
+    Some(host)
 }
 
 /// A root signature with nothing in it.
@@ -43,7 +50,6 @@ fn empty_root(host: &Host) -> ID3D12RootSignature {
 #[test]
 fn a_refused_pipeline_names_the_debug_layers_reason() {
     let Some(host) = host() else {
-        eprintln!("no debug layer on this machine; skipped");
         return;
     };
     let root = empty_root(&host);
@@ -56,7 +62,6 @@ fn a_refused_pipeline_names_the_debug_layers_reason() {
 #[test]
 fn hosts_sharing_a_device_keep_their_messages() {
     let Some(first) = host() else {
-        eprintln!("no debug layer on this machine; skipped");
         return;
     };
     let workers: Vec<_> = (0..8)
